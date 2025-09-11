@@ -1,0 +1,24 @@
+{
+    "name": "simp/modal",
+    "description": "This is package that will be standalone modal creations",
+    "type": "library",
+    "license": "MIT",
+    "autoload": {
+        "psr-4": {
+            "Simp\\Modal\\": "src/"
+        }
+    },
+    "authors": [
+        {
+            "name": "CHANCENY",
+            "email": "nyasuluchance6@gmail.com"
+        }
+    ],
+    "require": {
+        "symfony/var-dumper": "^7.3",
+      "ext-pdo": "*"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^12"
+    }
+}
