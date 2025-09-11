@@ -1,8 +1,4 @@
-Perfect! Here’s an enhanced README with a **clickable Table of Contents** for better navigation in Markdown:
-
----
-
-# Simp Modal Demo
+# Simp Modal
 
 This project demonstrates a lightweight PHP Modal system with **CRUD operations, relations, and query building**.
 
