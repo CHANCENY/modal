@@ -29,7 +29,7 @@ This project demonstrates a lightweight PHP Modal system with **CRUD operations,
 ## Installation
 
 ```bash
-composer install
+composer require simp/modal
 ```
 
 Make sure your database is running and accessible. Update the database connection settings in `example.php`:
