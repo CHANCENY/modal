@@ -28,7 +28,8 @@ $bobId     = $userModal->fill(['name' => 'Bob', 'email' => 'bob@example.com', 'p
 $charlieId = $userModal->fill(['name' => 'Charlie', 'email' => 'charlie@example.com', 'password' => '1234'])->insert();
 
 dump("==== INSERTED USERS ====");
-dump($userModal->get());
+//dump($userModal->get());
+
 
 // -------------------- INSERT ROLES --------------------
 $roleModal->fill(['role_name' => 'Admin', 'uid' => $aliceId])->insert();
@@ -49,12 +50,14 @@ $usersSelected = $userModal
 dump("==== SELECTED COLUMNS ====");
 dump($usersSelected);
 
+
 // -------------------- HAS ONE RELATION (User -> Role) --------------------
 $alice = $userModal->where('id', '=', $aliceId)->first();
 $aliceRole = $roleModal->where('uid', '=', $alice['id'])->select(['role_name', 'uid'])->first();
 
 dump("==== HAS ONE RELATION (Alice -> Role) ====");
 dump(['user' => $alice, 'role' => $aliceRole]);
+
 
 // -------------------- HAS MANY RELATION (User -> Roles) --------------------
 $bob = $userModal->where('id', '=', $bobId)->first();

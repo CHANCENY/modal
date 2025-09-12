@@ -322,4 +322,48 @@ abstract class Modal
     {
         $this->relations[$name] = $callback;
     }
+
+
+    public function hasManyRelation(string $relatedClass, string $foreignKey, string $localKey, string $relationName): void
+    {
+        $this->defineRelation($relationName, function (array $ids) use ($relatedClass, $foreignKey, $localKey) {
+            $related = new $relatedClass(self::$connection);
+            $records = $related->whereIn($foreignKey, $ids)->get();
+
+            $grouped = [];
+            foreach ($records as $record) {
+                $grouped[$record[$foreignKey]][] = $record;
+            }
+            return $grouped;
+        });
+    }
+
+    public function belongsToRelation(string $relatedClass, string $foreignKey, string $ownerKey, string $relationName): void
+    {
+        $this->defineRelation($relationName, function (array $ids) use ($relatedClass, $foreignKey, $ownerKey) {
+            $related = new $relatedClass(self::$connection);
+            $records = $related->whereIn($ownerKey, $ids)->get();
+
+            $map = [];
+            foreach ($records as $record) {
+                $map[$record[$ownerKey]] = $record;
+            }
+            return $map;
+        });
+    }
+
+    public function hasOneRelation(string $relatedClass, string $foreignKey, string $localKey, string $relationName): void
+    {
+        $this->defineRelation($relationName, function (array $ids) use ($relatedClass, $foreignKey, $localKey) {
+            $related = new $relatedClass(self::$connection);
+            $records = $related->whereIn($foreignKey, $ids)->get();
+
+            $map = [];
+            foreach ($records as $record) {
+                $map[$record[$foreignKey]] = $record;
+            }
+            return $map;
+        });
+    }
+
 }
