@@ -18,17 +18,31 @@ abstract class Modal
     protected array $attributes = [];
     protected array $relations = [];
 
+    /**
+     * @param PDO|null $pdo
+     */
     public function __construct(?PDO $pdo = null)
     {
         self::$connection = $pdo;
     }
 
+    /**
+     * Get the modal instance.
+     * @param PDO $pdo
+     * @return static
+     */
     public static function getModal(PDO $pdo): static
     {
         return new static($pdo);
     }
 
     /* -------------------- Mass Assignment -------------------- */
+
+    /**
+     * Fill the model with data.
+     * @param array $data
+     * @return $this
+     */
     public function fill(array $data): self
     {
         if (!empty($this->modalDefinition['modal_fillable'])) {
@@ -47,11 +61,19 @@ abstract class Modal
         return $this;
     }
 
+    /**
+     * Get all attributes.
+     * @return array
+     */
     public function getAttributes(): array
     {
         return $this->attributes;
     }
 
+    /**
+     * Clear all attributes.
+     * @return void
+     */
     public function clearAttributes(): void
     {
         $this->attributes = [];
@@ -59,60 +81,119 @@ abstract class Modal
 
     /* -------------------- Query Builder -------------------- */
 
+    /**
+     * Add a "WHERE" clause to the query.
+     * @param string $column
+     * @param string $operator
+     * @param mixed $value
+     * @return $this
+     */
     public function where(string $column, string $operator, mixed $value): self
     {
         $this->queryConditions[] = [$column, $operator, $value];
         return $this;
     }
 
+    /**
+     * Add an "IN" condition to the query.
+     * @param string $column
+     * @param array $values
+     * @return $this
+     */
     public function whereIn(string $column, array $values): self
     {
         $this->queryConditions[] = [$column, 'IN', $values];
         return $this;
     }
 
+    /**
+     * Add an "IN" condition to the query.
+     * @param string $column
+     * @param array $values
+     * @return $this
+     */
     public function whereNotIn(string $column, array $values): self
     {
         $this->queryConditions[] = [$column, 'NOT IN', $values];
         return $this;
     }
 
+    /**
+     * Add a "JOIN" clause to the query.
+     * @param string $column
+     * @param string $operator
+     * @param mixed $value
+     * @return $this
+     */
     public function orWhere(string $column, string $operator, mixed $value): self
     {
         $this->queryConditions[] = ['OR', $column, $operator, $value];
         return $this;
     }
 
+    /**
+     * Add an "OR IN" condition to the query.
+     * @param string $column
+     * @param array $values
+     * @return $this
+     */
     public function orWhereIn(string $column, array $values): self
     {
         $this->queryConditions[] = ['OR IN', $column, null, $values];
         return $this;
     }
 
+    /**
+     * Add an "OR NOT IN" condition to the query.
+     * @param string $column
+     * @param array $values
+     * @return $this
+     */
     public function orWhereNotIn(string $column, array $values): self
     {
         $this->queryConditions[] = ['OR NOT IN', $column, null, $values];
         return $this;
     }
 
+    /**
+     * Set the limit for the query.
+     * @param int $limit
+     * @return $this
+     */
     public function limit(int $limit): self
     {
         $this->limit = $limit;
         return $this;
     }
 
+    /**
+     * Set the offset for the query.
+     * @param int $offset
+     * @return $this
+     */
     public function offset(int $offset): self
     {
         $this->offset = $offset;
         return $this;
     }
 
+    /**
+     * Set the order by clause for the query.
+     * @param string $column
+     * @param string $direction
+     * @return $this
+     */
     public function orderBy(string $column, string $direction = 'ASC'): self
     {
         $this->orderBy = "`$column` $direction";
         return $this;
     }
 
+    /**
+     * Add relations to the query.
+     * @param array|string $relations
+     * @return $this
+     */
     public function with(array|string $relations): self
     {
         if (is_string($relations)) $relations = [$relations];
@@ -121,6 +202,12 @@ abstract class Modal
     }
 
     /* -------------------- Column Selection -------------------- */
+
+    /**
+     * Set the columns to select for the query.
+     * @param array|string $columns
+     * @return $this
+     */
     public function select(array|string $columns): self
     {
         if (is_string($columns)) $columns = [$columns];
@@ -128,6 +215,10 @@ abstract class Modal
         return $this;
     }
 
+    /**
+     * Build the SELECT clause for the query.
+     * @return string
+     */
     protected function buildSelect(): string
     {
         if (!empty($this->selects)) {
@@ -138,6 +229,12 @@ abstract class Modal
     }
 
     /* -------------------- WHERE and Modifiers -------------------- */
+
+    /**
+     * Build the WHERE clause for the query.
+     * @param array $params
+     * @return string
+     */
     protected function buildWhere(array &$params): string
     {
         if (empty($this->queryConditions)) return '';
@@ -179,6 +276,10 @@ abstract class Modal
         return " WHERE $sql";
     }
 
+    /**
+     * Build the ORDER BY and LIMIT clauses for the query.
+     * @return string
+     */
     protected function buildModifiers(): string
     {
         $sql = '';
@@ -188,6 +289,10 @@ abstract class Modal
         return $sql;
     }
 
+    /**
+     * Reset the query builder state.
+     * @return void
+     */
     protected function resetQuery(): void
     {
         $this->queryConditions = [];
@@ -200,6 +305,10 @@ abstract class Modal
         $this->clearAttributes();
     }
 
+    /**
+     * Get the database connection.
+     * @return PDO
+     */
     protected function getConnection(): PDO
     {
         if (!self::$connection) throw new \RuntimeException("Database connection not set.");
@@ -207,6 +316,12 @@ abstract class Modal
     }
 
     /* -------------------- CRUD -------------------- */
+
+    /**
+     * Get the first record from the database.
+     * @return array|null
+     * @throws \ReflectionException
+     */
     public function first(): ?array
     {
         $params = [];
@@ -220,6 +335,11 @@ abstract class Modal
         return $result ? $this->loadRelations([$result])[0] : null;
     }
 
+    /**
+     * Get all records from the database.
+     * @return array
+     * @throws \ReflectionException
+     */
     public function get(): array
     {
         $params = [];
@@ -233,6 +353,11 @@ abstract class Modal
         return $this->loadRelations($results);
     }
 
+    /**
+     * Insert a new record into the database.
+     * @param array $data
+     * @return int
+     */
     public function insert(array $data = []): int
     {
         $data = $data ?: $this->attributes;
@@ -248,6 +373,11 @@ abstract class Modal
         return (int)$this->getConnection()->lastInsertId();
     }
 
+    /**
+     * Update a record in the database.
+     * @param array $data
+     * @return int
+     */
     public function update(array $data = []): int
     {
         $data = $data ?: $this->attributes;
@@ -268,6 +398,10 @@ abstract class Modal
         return $affected;
     }
 
+    /**
+     * Delete a record from the database.
+     * @return int
+     */
     public function delete(): int
     {
         if (empty($this->queryConditions)) throw new \RuntimeException("Delete requires at least one WHERE condition.");
@@ -281,6 +415,14 @@ abstract class Modal
     }
 
     /* -------------------- Relations -------------------- */
+
+    /**
+     * Get the related record for a has-one relationship.
+     * @param string $relatedClass
+     * @param string $foreignKey
+     * @param string $localKey
+     * @return array|null
+     */
     public function hasOne(string $relatedClass, string $foreignKey, string $localKey = 'id'): ?array
     {
         $related = new $relatedClass(self::$connection);
@@ -288,6 +430,13 @@ abstract class Modal
         return $related->where($foreignKey, '=', $this->$localKey)->first();
     }
 
+    /**
+     * Get the related records for a has-many relationship.
+     * @param string $relatedClass
+     * @param string $foreignKey
+     * @param string $localKey
+     * @return array
+     */
     public function hasMany(string $relatedClass, string $foreignKey, string $localKey = 'id'): array
     {
         $related = new $relatedClass(self::$connection);
@@ -295,6 +444,13 @@ abstract class Modal
         return $related->where($foreignKey, '=', $this->$localKey)->get();
     }
 
+    /**
+     * Get the related record for a belongs-to relationship.
+     * @param string $refModalClass
+     * @param string $refColumn
+     * @param mixed $value
+     * @return array|null
+     */
     public function belongsTo(string $refModalClass, string $refColumn, mixed $value): ?array
     {
         $refModal = $refModalClass::getModal(self::$connection);
@@ -302,6 +458,13 @@ abstract class Modal
         return $refModal->where($refColumn, '=', $value)->first();
     }
 
+    /**
+     * Load relations for a set of records.
+     * @param array $results
+     * @param string $relation
+     * @param callable $callback
+     * @return array
+     */
     protected function loadEagerRelation(array $results, string $relation, callable $callback): array
     {
         $localKeys = [];
@@ -318,12 +481,25 @@ abstract class Modal
         return $results;
     }
 
+    /**
+     * Load relations for a set of records.
+     * @param string $name
+     * @param callable $callback
+     * @return void
+     */
     public function defineRelation(string $name, callable $callback): void
     {
         $this->relations[$name] = $callback;
     }
 
-
+    /**
+     * Build a relation function for a has-many relationship.
+     * @param string $relatedClass
+     * @param string $foreignKey
+     * @param string $localKey
+     * @param string $relationName
+     * @return void
+     */
     public function hasManyRelation(string $relatedClass, string $foreignKey, string $localKey, string $relationName): void
     {
         $this->defineRelation($relationName, function (array $ids) use ($relatedClass, $foreignKey, $localKey) {
@@ -338,6 +514,14 @@ abstract class Modal
         });
     }
 
+    /**
+     * Build a relation function for a belongs-to relationship.
+     * @param string $relatedClass
+     * @param string $foreignKey
+     * @param string $ownerKey
+     * @param string $relationName
+     * @return void
+     */
     public function belongsToRelation(string $relatedClass, string $foreignKey, string $ownerKey, string $relationName): void
     {
         $this->defineRelation($relationName, function (array $ids) use ($relatedClass, $foreignKey, $ownerKey) {
@@ -352,6 +536,16 @@ abstract class Modal
         });
     }
 
+    /**
+     * Defines a "has-one" relationship between the current model and a related model.
+     *
+     * @param string $relatedClass The fully qualified class name of the related model.
+     * @param string $foreignKey The foreign key column in the related model.
+     * @param string $localKey The primary key column in the current model used to match the foreign key.
+     * @param string $relationName The name of the relationship being defined.
+     *
+     * @return void
+     */
     public function hasOneRelation(string $relatedClass, string $foreignKey, string $localKey, string $relationName): void
     {
         $this->defineRelation($relationName, function (array $ids) use ($relatedClass, $foreignKey, $localKey) {
