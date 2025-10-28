@@ -145,36 +145,42 @@ class ModalMigrationCLI
         }
 
         $status = [];
-       try{
-           foreach ($files as $file) {
 
-               // Keep your line
-               $className = require_once $migrationDir . DIRECTORY_SEPARATOR . $file;
+        foreach ($files as $file) {
 
-               if (class_exists($className)) {
-                   $instance = new $className();
-                   $query = $instance->up();
+            try{
+                // Keep your line
+                $className = require_once $migrationDir . DIRECTORY_SEPARATOR . $file;
 
-                   $result = $connection->exec($query);
+                if (class_exists($className)) {
+                    $instance = new $className();
+                    $query = $instance->up();
 
-                   if ($result !== false) {
-                       $status[] = "Migration for table {$instance->getTable()} was successful.";
-                   } else {
-                       $status[] = "Migration for table {$instance->getTable()} failed.";
-                   }
-                   $status[] = str_repeat('_', strlen(end($status)) + 20);
-               } else {
-                   $status[] = "Migration class {$className} not found in {$file}.";
-               }
-           }
-       }catch (\Throwable $e){
-           $status[] = $e->getMessage();
-           $status[] = str_repeat('_', strlen(end($status)) + 20);
-       }
+                    $result = $connection->exec($query);
+
+                    if ($result !== false) {
+                        $status[] = "Migration for table {$instance->getTable()} was successful.";
+                    } else {
+                        $status[] = "Migration for table {$instance->getTable()} failed.";
+                    }
+                    $status[] = str_repeat('_', strlen(end($status)) + 20);
+                } else {
+                    $status[] = "Migration class {$className} not found in {$file}.";
+                }
+            }catch (\Throwable $e){
+                $status[] = $e->getMessage();
+                $status[] = str_repeat('_', strlen(end($status)) + 20);
+            }
+        }
 
         return $status;
     }
 
+    /**
+     * Executes migration files located in the specified migrations directory.
+     * @param PDO $connection
+     * @return array
+     */
     public function doMigrateModify(PDO $connection): array
     {
         $migrationDir = $this->modalConfiguration->getModalDirectory() . DIRECTORY_SEPARATOR . 'Migrations';
@@ -187,40 +193,45 @@ class ModalMigrationCLI
         }
 
         $status = [];
-        try{
-            foreach ($files as $file) {
 
+        foreach ($files as $file) {
+
+            try{
                 // Keep your line
-                $className = require_once $migrationDir . DIRECTORY_SEPARATOR . $file;
+                $className = require $migrationDir . DIRECTORY_SEPARATOR . $file;
 
                 if (class_exists($className)) {
                     $instance = new $className();
-                    $query = $instance->modify();
+                    $queries = $instance->modify();
 
-                    if (!empty($query)) {
-                        $queries = implode(";", $query);
-                        $queries = str_replace("\\",'', $queries);
-                        $queries = str_replace(";;", ';', $queries);
+                    if (!empty($queries)) {
 
-                        $result = $connection->exec($queries);
+                        foreach ($queries as $q) {
 
-                        if ($result !== false) {
-                            $status[] = "Migration modification for table {$instance->getTable()} was successful.";
-                        } else {
-                            $status[] = "Migration modification for table {$instance->getTable()} failed.";
+                            try{
+                                $result = $connection->exec($q);
+
+                                if ($result !== false) {
+                                    $status[] = "Migration modification for table {$instance->getTable()} was successful.";
+                                } else {
+                                    $status[] = "Migration modification for table {$instance->getTable()} failed.";
+                                }
+                                $status[] = str_repeat('_', strlen(end($status)) + 20);
+                            }catch (\Throwable $e){
+                                $status[] = $e->getMessage();
+                                $status[] = str_repeat('_', strlen(end($status)) + 20);
+                            }
                         }
-                        $status[] = str_repeat('_', strlen(end($status)) + 20);
                     }
 
                 } else {
                     $status[] = "Migration class {$className} not found in {$file}.";
                 }
+            }catch (\Throwable $e){
+                $status[] = $e->getMessage();
+                $status[] = str_repeat('_', strlen(end($status)) + 20);
             }
-        }catch (\Throwable $e){
-            $status[] = $e->getMessage();
-            $status[] = str_repeat('_', strlen(end($status)) + 20);
         }
-
         return $status;
     }
 

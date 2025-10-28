@@ -242,17 +242,66 @@ abstract class Modal
         $parts = [];
 
         foreach ($this->queryConditions as $i => $cond) {
+            // Detect pattern type
             if (count($cond) === 3) {
                 [$col, $op, $val] = $cond;
                 $prefix = 'AND';
+                $type = '';
             } else {
                 [$type, $col, $op, $val] = $cond;
                 $prefix = ($type === 'OR' || str_starts_with($type, 'OR')) ? 'OR' : 'AND';
-                if (in_array($type, ['OR IN', 'OR NOT IN'])) {
-                    $op = strtoupper(str_replace('OR ', '', $type));
-                }
             }
 
+            // --- Handle RAW conditions (whereRaw) ---
+            if ($type === 'RAW') {
+                $rawSql = $col;
+                $bindings = $op ?? [];
+                foreach ($bindings as $k => $v) {
+                    $paramKey = "w_raw_{$i}_{$k}";
+                    $params[$paramKey] = $v;
+                    $rawSql = str_replace('?', ":$paramKey", $rawSql);
+                }
+                $parts[] = "$prefix ($rawSql)";
+                continue;
+            }
+
+            // --- Handle BETWEEN ---
+            if (strtoupper($op) === 'BETWEEN' || strtoupper($type) === 'BETWEEN') {
+                [$start, $end] = $val;
+                $k1 = "w_" . preg_replace('/\W+/', '_', $col) . "_{$i}_start";
+                $k2 = "w_" . preg_replace('/\W+/', '_', $col) . "_{$i}_end";
+                $params[$k1] = $start;
+                $params[$k2] = $end;
+                $parts[] = "$prefix `$col` BETWEEN :$k1 AND :$k2";
+                continue;
+            }
+
+            // --- Handle OR BETWEEN ---
+            if (strtoupper($type) === 'OR BETWEEN') {
+                [$start, $end] = $val;
+                $k1 = "w_" . preg_replace('/\W+/', '_', $col) . "_{$i}_start";
+                $k2 = "w_" . preg_replace('/\W+/', '_', $col) . "_{$i}_end";
+                $params[$k1] = $start;
+                $params[$k2] = $end;
+                $parts[] = "OR `$col` BETWEEN :$k1 AND :$k2";
+                continue;
+            }
+
+            // --- Handle SEARCH (multi-column LIKE) ---
+            if (strtoupper($type) === 'SEARCH') {
+                $columns = (array) $col;
+                $keyword = $val;
+                $searchParts = [];
+                foreach ($columns as $j => $c) {
+                    $k = "w_search_" . preg_replace('/\W+/', '_', $c) . "_{$i}_{$j}";
+                    $params[$k] = "%$keyword%";
+                    $searchParts[] = "`$c` LIKE :$k";
+                }
+                $parts[] = "$prefix (" . implode(' OR ', $searchParts) . ")";
+                continue;
+            }
+
+            // --- Handle IN and NOT IN ---
             if (in_array(strtoupper($op), ['IN', 'NOT IN'])) {
                 if (empty($val)) continue;
                 $placeholders = [];
@@ -262,11 +311,13 @@ abstract class Modal
                     $params[$key] = $v;
                 }
                 $parts[] = "$prefix `$col` $op (" . implode(',', $placeholders) . ")";
-            } else {
-                $key = "w_" . preg_replace('/\W+/', '_', $col) . "_$i";
-                $parts[] = "$prefix `$col` $op :$key";
-                $params[$key] = $val;
+                continue;
             }
+
+            // --- Default: simple condition ---
+            $key = "w_" . preg_replace('/\W+/', '_', $col) . "_$i";
+            $parts[] = "$prefix `$col` $op :$key";
+            $params[$key] = $val;
         }
 
         if (empty($parts)) return '';
@@ -558,6 +609,197 @@ abstract class Modal
             }
             return $map;
         });
+    }
+
+    //--------------NEW methods---------------------//
+    /**
+     * Add a raw WHERE condition.
+     * @param string $rawSql
+     * @param array $bindings
+     * @return $this
+     */
+    public function whereRaw(string $rawSql, array $bindings = []): self
+    {
+        $this->queryConditions[] = ['RAW', $rawSql, $bindings];
+        return $this;
+    }
+
+    /**
+     * Add a BETWEEN condition.
+     * @param string $column
+     * @param mixed $start
+     * @param mixed $end
+     * @return $this
+     */
+    public function whereBetween(string $column, mixed $start, mixed $end): self
+    {
+        $this->queryConditions[] = [$column, 'BETWEEN', [$start, $end]];
+        return $this;
+    }
+
+    /**
+     * Add an OR BETWEEN condition.
+     * @param string $column
+     * @param mixed $start
+     * @param mixed $end
+     * @return $this
+     */
+    public function orWhereBetween(string $column, mixed $start, mixed $end): self
+    {
+        $this->queryConditions[] = ['OR BETWEEN', $column, null, [$start, $end]];
+        return $this;
+    }
+
+    /**
+     * Count records matching the query.
+     * @return int
+     */
+    public function count(): int
+    {
+        $params = [];
+        $sql = "SELECT COUNT(*) as aggregate FROM `{$this->modalDefinition['modal_table']}`" .
+            $this->buildWhere($params);
+        $stmt = $this->getConnection()->prepare($sql);
+        $stmt->execute($params);
+        $this->resetQuery();
+        return (int)$stmt->fetchColumn();
+    }
+
+    /**
+     * Sum a column.
+     * @param string $column
+     * @return float|int
+     */
+    public function sum(string $column): float|int
+    {
+        $params = [];
+        $sql = "SELECT SUM(`$column`) as aggregate FROM `{$this->modalDefinition['modal_table']}`" .
+            $this->buildWhere($params);
+        $stmt = $this->getConnection()->prepare($sql);
+        $stmt->execute($params);
+        $this->resetQuery();
+        return (float)$stmt->fetchColumn();
+    }
+
+    /**
+     * Get the average value of a column.
+     * @param string $column
+     * @return float|int
+     */
+    public function avg(string $column): float|int
+    {
+        $params = [];
+        $sql = "SELECT AVG(`$column`) as aggregate FROM `{$this->modalDefinition['modal_table']}`" .
+            $this->buildWhere($params);
+        $stmt = $this->getConnection()->prepare($sql);
+        $stmt->execute($params);
+        $this->resetQuery();
+        return (float)$stmt->fetchColumn();
+    }
+
+    /**
+     * Find record by primary key.
+     * @param mixed $id
+     * @param string $primaryKey
+     * @return array|null
+     */
+    public function find(mixed $id, string $primaryKey = 'id'): ?array
+    {
+        return $this->where($primaryKey, '=', $id)->first();
+    }
+
+    /**
+     * Check if a record exists.
+     * @return bool
+     */
+    public function exists(): bool
+    {
+        $params = [];
+        $sql = "SELECT 1 FROM `{$this->modalDefinition['modal_table']}`" .
+            $this->buildWhere($params) .
+            " LIMIT 1";
+        $stmt = $this->getConnection()->prepare($sql);
+        $stmt->execute($params);
+        $this->resetQuery();
+        return (bool)$stmt->fetchColumn();
+    }
+
+    /**
+     * Paginate results.
+     * @param int $perPage
+     * @param int $page
+     * @return array
+     */
+    public function paginate(int $perPage = 10, int $page = 1): array
+    {
+        $offset = ($page - 1) * $perPage;
+        $results = $this->limit($perPage)->offset($offset)->get();
+        $total = $this->count();
+
+        return [
+            'data' => $results,
+            'total' => $total,
+            'per_page' => $perPage,
+            'current_page' => $page,
+            'last_page' => ceil($total / $perPage),
+        ];
+    }
+
+    /**
+     * Clone current query instance (without execution).
+     * @return static
+     */
+    public function cloneQuery(): static
+    {
+        $clone = clone $this;
+        $clone->attributes = $this->attributes;
+        $clone->queryConditions = $this->queryConditions;
+        $clone->orderBy = $this->orderBy;
+        $clone->limit = $this->limit;
+        $clone->offset = $this->offset;
+        $clone->selects = $this->selects;
+        return $clone;
+    }
+
+    /**
+     * Get all table columns.
+     * @return array
+     */
+    public function getColumns(): array
+    {
+        $stmt = $this->getConnection()->query("DESCRIBE `{$this->modalDefinition['modal_table']}`");
+        $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_COLUMN);
+    }
+
+    /**
+     * Get the last executed SQL with bound parameters replaced.
+     * (useful for debugging)
+     * @param string $sql
+     * @param array $params
+     * @return string
+     */
+    protected function interpolateSql(string $sql, array $params): string
+    {
+        foreach ($params as $key => $value) {
+            $escaped = is_numeric($value) ? $value : "'" . addslashes($value) . "'";
+            $sql = str_replace(":$key", $escaped, $sql);
+        }
+        return $sql;
+    }
+
+    /**
+     * Search for a keyword in one or more columns.
+     *
+     * @param string|array $columns
+     * @param string $keyword
+     * @return $this
+     */
+    public function search(string|array $columns, string $keyword): self
+    {
+        if (is_string($columns)) $columns = [$columns];
+        $this->queryConditions[] = ['SEARCH', $columns, 'LIKE', $keyword];
+        return $this;
     }
 
 }
